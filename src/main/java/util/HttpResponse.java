@@ -1,9 +1,6 @@
 package util;
 
 import com.google.common.io.Files;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import webserver.RequestHandler;
 
 import java.io.DataOutputStream;
 import java.io.File;
@@ -13,10 +10,8 @@ import java.util.HashMap;
 import java.util.Set;
 
 public class HttpResponse {
-    private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
-    private final HashMap<String, String> header = new HashMap<>();
     private DataOutputStream dos;
-    private byte[] body;
+    private final HashMap<String, String> header = new HashMap<>();
 
     public HttpResponse(OutputStream out) {
         this.dos = new DataOutputStream(out);
@@ -27,9 +22,8 @@ public class HttpResponse {
     }
 
     public void forward(String url) throws IOException {
-        forwardBody(url);
+        byte[] body = Files.toByteArray(new File("webapp" + url));
 
-        response200Header();
         if(url.endsWith(".css")) {
             addHeader("Content-Type", "text/css");
         } else if(url.endsWith(".js")) {
@@ -37,37 +31,43 @@ public class HttpResponse {
         } else {
             addHeader("Content-Type", "text/html;charset=utf-8");
         }
-        addHeader("Content-Length", String.valueOf(this.body.length));
-        processHeader();
+        this.header.put("Content-Length", String.valueOf(body.length));
+        response200Header(body.length);
+        responseBody(body);
+    }
 
-        responseBody(this.body);
+    public void forwardBody(String body) throws IOException {
+        byte[] contents = body.getBytes();
+        this.header.put("Content-Type", "text/html;charset=utf-8");
+        this.header.put("Content-Length", String.valueOf(contents.length));
+        response200Header(contents.length);
+        responseBody(contents);
     }
 
     public void sendRedirect(String url) throws IOException {
         this.dos.writeBytes("HTTP/1.1 302 Found" + System.lineSeparator());
+        processHeaders();
         this.dos.writeBytes("Location: " + url + System.lineSeparator());
-        processHeader();
         this.dos.writeBytes(System.lineSeparator());
     }
 
-    public void forwardBody(String url) throws IOException {
-        this.body = Files.toByteArray(new File("webapp" + url));
-    }
-
-    public void response200Header() throws IOException {
+    public void response200Header(int lengthOfBodyContent) throws IOException {
         this.dos.writeBytes("HTTP/1.1 200 OK" + System.lineSeparator());
+        this.dos.writeBytes("Content-Length: " + lengthOfBodyContent + System.lineSeparator());
+        processHeaders();
+        this.dos.writeBytes(System.lineSeparator());
     }
 
     public void responseBody(byte[] body) throws IOException {
         this.dos.write(body, 0, body.length);
+        this.dos.writeBytes(System.lineSeparator());
         this.dos.flush();
     }
 
-    public void processHeader() throws IOException {
+    public void processHeaders() throws IOException {
         Set<String> keySet = this.header.keySet();
         for(String key: keySet) {
             this.dos.writeBytes(key + ": " + this.header.get(key) + System.lineSeparator());
         }
-        this.dos.writeBytes(System.lineSeparator());
     }
 }
